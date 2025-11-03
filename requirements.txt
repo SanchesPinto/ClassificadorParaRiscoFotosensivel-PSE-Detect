@@ -1,0 +1,10 @@
+# Core de Deep Learning
+torch
+torchvision
+
+# Computação Numérica e Manipulação de Dados
+numpy
+pandas
+
+# Logging e Visualização
+tensorboardgit 
