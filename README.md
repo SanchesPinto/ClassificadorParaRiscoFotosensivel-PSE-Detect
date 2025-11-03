@@ -1,4 +1,4 @@
-# ClassificadorParaRiscoFotosens-vel-PSE-Detect
+# ClassificadorParaRiscoFotosensivel-PSE-Detect
 IA para classificar risco de epilepsia fotossensível (EFS) em vídeos, seguindo a norma ITU-R BT.1702-3. O modelo (CNN+LSTM) foi treinado em um dataset sintético de arrays .npy, gerado e validado pela ferramenta IRIS (EA) para garantir a segurança e precisão dos rótulos. Projeto focado em acessibilidade de mídia digital.
 ## 🚀 Como Executar (Ambiente Local)
 
@@ -6,7 +6,7 @@ Siga estas etapas para configurar e treinar o modelo em sua máquina local.
 
 1.  **Clone o Repositório:**
     ```bash
-    git clone https://github.com/SanchesPinto/ClassificadorParaRiscoFotosens-vel-PSE-Detect.git
+    git clone https://github.com/SanchesPinto/ClassificadorParaRiscoFotosensivel-PSE-Detect.git
     cd ClassificadorParaRiscoFotosensivel-PSE-Detect
     ```
 
