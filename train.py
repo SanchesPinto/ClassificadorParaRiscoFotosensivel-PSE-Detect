@@ -247,6 +247,15 @@ def train_looping(model, train_loader, val_loader, criterion, writer, device):
     
     model.to(device) # Move o modelo para a GPU, se disponível
 
+    # --- NOVO: Variável para rastrear o melhor loss de validação ---
+    best_val_loss = np.inf # Começa com infinito, pois queremos o menor valor
+    
+    # --- MODIFICADO: Definimos o caminho e criamos a pasta ANTES do loop ---
+    os.makedirs("models", exist_ok=True)
+    best_model_path = "models/model2_best.pth" # Renomeei para "best" para clareza
+
+    print(f"Iniciando treinamento... O melhor modelo será salvo em: {best_model_path}")
+
     for epoch in range(epochs):
         model.train() # Modo de treinamento
         total_loss = 0
@@ -273,6 +282,7 @@ def train_looping(model, train_loader, val_loader, criterion, writer, device):
         train_acc = correct_train / total_train
 
         val_loss, val_acc = avaliar_modelo(model, val_loader, criterion, device)
+        
         print(f"Época {epoch+1:02d}, "
               f"Loss Treino: {train_loss_avg:.4f}, Acurácia Treino: {train_acc*100:.2f}%, "
               f"Loss Val: {val_loss:.4f}, Acurácia Val: {val_acc*100:.2f}%")
@@ -280,18 +290,27 @@ def train_looping(model, train_loader, val_loader, criterion, writer, device):
         writer.add_scalars("Losses", {"Train": train_loss_avg, "Validation": val_loss}, epoch)
         writer.add_scalars("Accuracies", {"Train": train_acc, "Validation": val_acc}, epoch)
 
-    os.makedirs("models", exist_ok=True)
-    model_path = "models/rna_etapa2.pth"
+        # --- NOVO: Lógica para salvar o melhor modelo ---
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss # Atualiza o melhor loss
+            
+            print(f"  ✨ Nova melhor pontuação! Loss de Validação: {best_val_loss:.4f}. Salvando modelo...")
+            
+            # Salva o checkpoint (o estado atual do modelo)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_loss': best_val_loss,
+            }, best_model_path)
 
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'epoch': epoch,
-    }, model_path)
+    # --- MODIFICADO: Mensagem final ---
+    print(f"\nTreinamento concluído.")
+    print(f"💾 O melhor modelo foi salvo em: {best_model_path} (com loss de {best_val_loss:.4f})")
 
-    print(f"💾 Modelo salvo em: {model_path}")
-
-    return model # Retorna o modelo treinado
+    # Retorna o modelo (que está no estado da *última* época,
+    # mas o *melhor* estado está salvo no arquivo)
+    return model
 
 # ============================
 # 5. Main
