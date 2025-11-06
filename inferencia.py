@@ -71,10 +71,9 @@ class Rede(nn.Module):
 # ===================================================================
 
 def _process_frames_for_inference(frames_array, sequence_length):
-    """
-    Aplica a mesma lógica de padding/amostragem do Dataset
-    para um único clipe de inferência.
-    """
+
+    # Aplica a mesma lógica de padding/amostragem do Dataset para um único clipe de inferência.
+
     total_frames = frames_array.shape[0]
     
     if total_frames == sequence_length:
@@ -93,10 +92,10 @@ def _process_frames_for_inference(frames_array, sequence_length):
         return np.concatenate((frames_array, padding), axis=0)
 
 def load_video_and_prepare_tensor(video_path, transform, sequence_length, device):
-    """
-    Carrega um vídeo, extrai frames, aplica a lógica do dataset
-    e o transforma em um tensor pronto para o modelo.
-    """
+
+    # Carrega um vídeo, extrai frames, aplica a lógica do dataset
+    # Transforma de .mp4 para .npy e aplica transformações
+
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise IOError(f"Não foi possível abrir o vídeo: {video_path}")
@@ -134,9 +133,9 @@ def load_video_and_prepare_tensor(video_path, transform, sequence_length, device
     return input_tensor.to(device)
 
 def run_inference(model_path, video_path):
-    """
-    Função principal que carrega o modelo e executa a previsão. (CORRIGIDA)
-    """
+
+    # Carrega o modelo e executa a previsão
+
     # 1. Definir o dispositivo
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Usando dispositivo: {device}")
@@ -166,7 +165,7 @@ def run_inference(model_path, video_path):
         print(f"Processando vídeo: {video_path}...")
         input_tensor = load_video_and_prepare_tensor(video_path, transform, SEQ_LENGTH, device)
 
-        # 7. Executar a inferência (sem calcular gradientes)
+        # 7. Executar a inferência 
         with torch.no_grad():
             logit = model(input_tensor) # Saída é um tensor logit, ex: tensor([[2.7]])
             

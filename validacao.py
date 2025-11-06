@@ -6,21 +6,21 @@ import subprocess # Para executar o IRIS
 import json       # Para ler o resultado
 import shutil     # Para apagar pastas
 
-# --- 1. CONFIGURAÇÃO OBRIGATÓRIA ---
-# !!! ATUALIZE ESTE CAMINHO para o local do seu executável do IRIS compilado
+
+# Caminho para o IRIS compilado
 IRIS_EXECUTABLE_PATH = r""
 
 # --- 2. CONFIGURAÇÃO DOS DADOS ---
-NPY_DATA_DIRS = ["high_risk_raw_data", "low_risk_raw_data"]
+NPY_DATA_DIRS = ["FAIL", "PASS"]  # Pastas contendo os arquivos .npy para validação
 TEMP_DIR = "temp_pipeline_work"
 IRIS_OUTPUT_DIR = "Results" # O IRIS cria esta pasta por padrão
 
-# Configurações de vídeo (devem ser as mesmas da geração)
-FPS = 60
+# Configurações de vídeo 
+FPS = 30
 FOURCC = cv2.VideoWriter_fourcc(*'mp4v')
 
 def convert_npy_to_video(npy_path, output_video_path):
-    """Converte um .npy em um vídeo .mp4 temporário."""
+    # Converte um .npy em um vídeo .mp4 temporário
     try:
         video_data = np.load(npy_path)
         height, width, _ = video_data[0].shape
@@ -35,18 +35,13 @@ def convert_npy_to_video(npy_path, output_video_path):
     return True
 
 def parse_iris_output(json_path):
-    """
-    Analisa o arquivo de saída JSON do IRIS.
-    Retorna 'FAIL' (perigoso) se qualquer falha for detectada.
-    Retorna 'PASS' (seguro) se nenhuma falha for encontrada.
-    """
+
+    # Retorna 'FAIL' (perigoso) se qualquer falha for detectada
+    # Retorna 'PASS' (seguro) se nenhuma falha for encontrada
+
     try:
         with open(json_path, 'r') as f:
             data = json.load(f)
-        
-        # O README não especifica a estrutura do JSON.
-        # Vamos supor que seja uma lista de frames ou um objeto com uma chave "frames".
-        # Esta parte pode precisar de ajuste após ver o primeiro JSON gerado.
         
         # Tentativa 1: O próprio arquivo é uma lista de frames
         frame_list = data
@@ -75,7 +70,7 @@ def parse_iris_output(json_path):
         return "PARSE_ERROR"
 
 def main():
-    """Orquestra a pipeline de validação automatizada."""
+    # Pipeline de validação automatizada
     
     # Verifica se o executável do IRIS existe
     if not os.path.exists(IRIS_EXECUTABLE_PATH):

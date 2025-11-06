@@ -26,15 +26,7 @@ transform = transforms.Compose([
 
 class PhotosensitivityDataset(torch.utils.data.Dataset):
     def __init__(self, root_dir, transform=None, sequence_length=30):
-        """
-        Versão adaptada que lê os rótulos das pastas 'PASS' e 'FAIL'.
 
-        Args:
-            root_dir (string): Caminho para o diretório que contém as subpastas 
-                               'PASS' e 'FAIL' (ex: 'data/sintetico/').
-            transform (callable, optional): Transformações a serem aplicadas em cada frame.
-            sequence_length (int): O número fixo de frames para cada clipe (para batching).
-        """
         self.root_dir = root_dir
         self.transform = transform
         self.sequence_length = sequence_length
@@ -89,7 +81,7 @@ class PhotosensitivityDataset(torch.utils.data.Dataset):
         except Exception as e:
             print(f"Erro ao carregar {npy_path}: {e}")
             video_data = np.zeros((self.sequence_length, 224, 224, 3), dtype=np.uint8)
-            label = 0 # Assume como "seguro" para não propagar erro
+            label = 0 # Assume como "seguro" para não propagar erro, talvez seja mais interessante assumir como perigoso dependendo do caso
 
         # 3. Ajustar a sequência de frames (Subamostragem ou Padding)
         frames = self._process_frames(video_data)
@@ -107,7 +99,7 @@ class PhotosensitivityDataset(torch.utils.data.Dataset):
         return input_tensor, torch.tensor(label, dtype=torch.float)
 
     def _process_frames(self, video_data):
-        """Amostra ou preenche os frames para atingir a sequence_length."""
+        # Amostra ou preenche os frames para atingir a sequence_length.
         total_frames = video_data.shape[0]
         
         if total_frames == self.sequence_length:
@@ -124,49 +116,52 @@ class PhotosensitivityDataset(torch.utils.data.Dataset):
             return np.concatenate((video_data, padding), axis=0)
 
 # ============================
-# 2. Modelo 
+# 2. Modelo (Com Dropout Ajustado)
 # ============================
+import torch
+import torch.nn as nn
+import torchvision.models as models
 
 class Rede(nn.Module):
-    def __init__(self, cnn_output_size=512, lstm_hidden_size=256, lstm_num_layers=2, classifier_dropout=0.5):
-        super(Rede, self).__init__()
-        
-        # --- 1. (Encoder CNN) ---
-        resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    # --- Dropout padrão aumentado para 0.6 para forçar generalização ---
+    def __init__(self, cnn_output_size=512, lstm_hidden_size=256, lstm_num_layers=2, classifier_dropout=0.6):
 
-        # Em vez de congelar tudo, vamos permitir o fine-tuning das camadas finais, pois os padrões são mais específicos.
-        # Congela as camadas iniciais (layers 1 e 2)
+        # Inicializa o modelo.
+        # O classifier_dropout padrão foi aumentado para 0.6 para maior regularização.
+    
+        super(Rede, self).__init__()
+
+        # --- 1. O Encoder CNN ---
+        resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        
+        # Permite o fine-tuning das camadas finais
         for param in resnet.parameters():
             param.requires_grad = False
-            
-        # Descongela as camadas 3 e 4 (mais específicas)
         for param in resnet.layer3.parameters():
             param.requires_grad = True
         for param in resnet.layer4.parameters():
             param.requires_grad = True
 
-        # Substitui a camada final (que também será treinada)
-        num_features = resnet.fc.in_features # Pega o N de features (512 no ResNet18)
-        resnet.fc = nn.Identity() # Remove a camada final
+        num_features = resnet.fc.in_features 
+        resnet.fc = nn.Identity() 
         self.cnn_extractor = resnet
         
-        # --- 2. (Processador Sequencial LSTM) ---
+        # --- 2. Processador Sequencial LSTM ---
         self.lstm = nn.LSTM(
-            input_size=num_features, # Usa o num_features (512)
+            input_size=num_features, 
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
-            bidirectional=True # Bidirecional pode ajudar a capturar o contexto temporal
+            bidirectional=True
         )
         
-        # --- 3. (Classifier Head) ---
-        # Se LSTM for bidirecional, o hidden_size dobra
+        # --- 3. Classifier Head ---
         classifier_input_size = lstm_hidden_size * 2 
         
         self.classifier = nn.Sequential(
             nn.Linear(classifier_input_size, 128),
             nn.ReLU(),
-            nn.Dropout(p=classifier_dropout),
+            nn.Dropout(p=classifier_dropout), 
             nn.Linear(128, 1) 
         )
 
@@ -174,34 +169,17 @@ class Rede(nn.Module):
         # x (Tensor): (batch_size, sequence_length, C, H, W)
         batch_size, sequence_length, C, H, W = x.shape
         
-        # (B, S, C, H, W) -> (B * S, C, H, W)
         x = x.view(batch_size * sequence_length, C, H, W)
-        
-        # (B * S, C, H, W) -> (B * S, cnn_output_size)
         features = self.cnn_extractor(x)
-        
-        # (B * S, cnn_output_size) -> (B, S, cnn_output_size)
         features = features.view(batch_size, sequence_length, -1)
         
-        # Passa pela LSTM
-        # lstm_out shape: (B, S, lstm_hidden_size * 2 [se bidirecional])
         lstm_out, _ = self.lstm(features)
         
-        # Usa Max Pooling sobre o tempo.
-        # Isso captura o "sinal mais forte" (ex: o flash mais intenso)
-        # em qualquer ponto da sequência.
-        
-        # (B, S, H_out) -> (B, H_out, S) para o pooling 1D
+        # Max Pooling sobre o tempo
         agg_features = lstm_out.permute(0, 2, 1) 
-        
-        # Aplica Max Pooling sobre a dimensão do tempo (S)
-        # (B, H_out, S) -> (B, H_out, 1)
         agg_features = nn.functional.max_pool1d(agg_features, kernel_size=sequence_length)
-        
-        # (B, H_out, 1) -> (B, H_out)
         agg_features = agg_features.squeeze(dim=2)
         
-        # Classifica com base no "sinal máximo"
         output = self.classifier(agg_features)
         
         return output
@@ -237,42 +215,47 @@ def avaliar_modelo(model, dataloader, criterion, device):
     return avg_loss, acc
 
 # ============================
-# 4. Loop de treino (Ajustado para BCEWithLogitsLoss e device)
+# 4. Loop de treino 
 # ============================
+
 def train_looping(model, train_loader, val_loader, criterion, writer, device):
-    # Filtra e passa para o Adam apenas os parâmetros que estão "descongelados"
+    
     params_to_update = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = optim.Adam(params_to_update, lr=0.001)
-    epochs = 10
-    
-    model.to(device) # Move o modelo para a GPU, se disponível
 
-    # --- NOVO: Variável para rastrear o melhor loss de validação ---
-    best_val_loss = np.inf # Começa com infinito, pois queremos o menor valor
+    # Adicionado weight_decay (regularização L2)
+    optimizer = optim.Adam(params_to_update, lr=0.001, weight_decay=1e-4)
     
-    # --- MODIFICADO: Definimos o caminho e criamos a pasta ANTES do loop ---
+    epochs = 10 # Versão atual que estamos usando o melhor modelo foi da época 7 e a partir da época 8 começou a overfittar
+
+    model.to(device) 
+
+    # --- Lógica para salvar o melhor modelo ---
+    best_val_loss = np.inf 
     os.makedirs("models", exist_ok=True)
-    best_model_path = "models/model2_best.pth" # Renomeei para "best" para clareza
+    
+    best_model_path = "models/model_v5.pth" #agora regularizado
 
-    print(f"Iniciando treinamento... O melhor modelo será salvo em: {best_model_path}")
+    print(f"Iniciando novo treinamento agora com regularização...")
+    print(f"O melhor modelo será salvo em: {best_model_path}")
 
     for epoch in range(epochs):
-        model.train() # Modo de treinamento
+        model.train() 
         total_loss = 0
         correct_train = 0
         total_train = 0
+        
+        # (O loop de treino interno permanece o mesmo)
         for X_batch, y_batch in train_loader:
             X_batch = X_batch.to(device)
-            y_batch = y_batch.to(device).view(-1, 1) # <-- GARANTE O SHAPE (B, 1)
+            y_batch = y_batch.to(device).view(-1, 1) 
             
             optimizer.zero_grad()
-            outputs = model(X_batch) # Saída são logits
+            outputs = model(X_batch) 
             loss = criterion(outputs, y_batch)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
-            # Calcular acurácia de treino também, para monitoramento
             probabilities = torch.sigmoid(outputs)
             predicted = (probabilities > 0.5).long()
             correct_train += (predicted == y_batch.long()).sum().item()
@@ -290,13 +273,11 @@ def train_looping(model, train_loader, val_loader, criterion, writer, device):
         writer.add_scalars("Losses", {"Train": train_loss_avg, "Validation": val_loss}, epoch)
         writer.add_scalars("Accuracies", {"Train": train_acc, "Validation": val_acc}, epoch)
 
-        # --- NOVO: Lógica para salvar o melhor modelo ---
+        # --- Lógica para salvar o checkpoint do melhor modelo ---
         if val_loss < best_val_loss:
-            best_val_loss = val_loss # Atualiza o melhor loss
-            
+            best_val_loss = val_loss 
             print(f"  ✨ Nova melhor pontuação! Loss de Validação: {best_val_loss:.4f}. Salvando modelo...")
             
-            # Salva o checkpoint (o estado atual do modelo)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -304,12 +285,17 @@ def train_looping(model, train_loader, val_loader, criterion, writer, device):
                 'val_loss': best_val_loss,
             }, best_model_path)
 
-    # --- MODIFICADO: Mensagem final ---
     print(f"\nTreinamento concluído.")
-    print(f"💾 O melhor modelo foi salvo em: {best_model_path} (com loss de {best_val_loss:.4f})")
+    print(f"💾 O melhor modelo V4 foi salvo em: {best_model_path} (com loss de {best_val_loss:.4f})")
 
-    # Retorna o modelo (que está no estado da *última* época,
-    # mas o *melhor* estado está salvo no arquivo)
+    # Carrega os pesos do melhor modelo salvo antes de retornar
+    try:
+        checkpoint = torch.load(best_model_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Modelo retornado agora é o da melhor época ({checkpoint['epoch']+1}).")
+    except Exception as e:
+        print(f"Aviso: Não foi possível recarregar o melhor modelo no final: {e}")
+        
     return model
 
 # ============================
@@ -320,8 +306,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Usando dispositivo: {device}")
 
-
-    dataset_root_dir = "datasets/dataset_pse_npy" 
+    dataset_root_dir = "datasets/dataset_pse_npy_v2" 
     SEQ_LENGTH = 30 
     
     full_dataset = PhotosensitivityDataset(
