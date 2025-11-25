@@ -49,16 +49,13 @@ Inicialmente, o modelo atingiu 99.5% de acurácia em dados sintéticos (fundo pr
 * **Solução:** Implementação de um gerador de dataset V3 que utiliza **188 vídeos de fundo reais** (paisagens, gameplays, vlogs) e realiza a sobreposição (*blending*) dos efeitos de risco, forçando o modelo a distinguir "sinal" de "ruído".
 
 ### Performance Final (Modelo V5)
-O gráfico abaixo ilustra o treinamento final. Nota-se o ponto exato de *Early Stopping* (Época 7/8) onde o modelo atinge a melhor capacidade de generalização antes de iniciar o overfitting.
+Durante o treinamento final foi utilizada a técnica de *Early Stopping* na (Época 7/8) onde o modelo atinge a melhor capacidade de generalização antes de iniciar o overfitting.
 
-| Curvas de Loss (Treino vs Validação) | Curvas de Acurácia |
-|:---:|:---:|
-| ![Loss Graph](assets/image_f9aedb.png) | ![Accuracy Graph](assets/image_f9ae9c.png) |
+
 
 ### Teste em Cenário Real (Inferência)
 O modelo final foi submetido a testes de estresse com vídeos notórios e clipes seguros.
 
-![Resultados da Inferência](assets/image_f95845.png)
 
 * ✅ **Porygon.mp4 (Caso Pokémon):** Detectado como **Alto Risco (96.74%)**.
 * ✅ **Show de Luzes:** Detectado como **Alto Risco (95.70%)**.
