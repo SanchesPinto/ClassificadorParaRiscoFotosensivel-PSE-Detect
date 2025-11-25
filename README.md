@@ -3,6 +3,12 @@
 > **Uma solução de IA para classificar automaticamente segmentos de vídeo que violam as normas de segurança ITU-R BT.1702-3 para epilepsia fotossensível.**
 
 ---
+⚠️ **AVISO IMPORTANTE / DISCLAIMER**
+
+Este software é um **protótipo experimental** desenvolvido estritamente para fins acadêmicos e de estudo sobre Deep Learning e Visão Computacional.
+
+**Ele NÃO deve ser utilizado como uma ferramenta definitiva de segurança médica ou para garantir a acessibilidade de conteúdo em ambientes de produção.** O modelo pode apresentar falsos negativos (falhar em detectar perigo) ou falsos positivos. Para validação de conformidade real com a norma ITU-R BT.1702-3, utilize ferramentas certificadas da indústria.
+
 
 ## 📋 Sobre o Projeto
 
