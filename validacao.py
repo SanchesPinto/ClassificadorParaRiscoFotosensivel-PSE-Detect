@@ -2,16 +2,16 @@ import cv2
 import numpy as np
 import os
 import glob
-import subprocess # Para executar o IRIS
-import json       # Para ler o resultado
-import shutil     # Para apagar pastas
+import subprocess 
+import json      
+import shutil    
 
 
 # Caminho para o IRIS compilado
 IRIS_EXECUTABLE_PATH = r""
 
 # --- 2. CONFIGURAÇÃO DOS DADOS ---
-NPY_DATA_DIRS = ["FAIL", "PASS"]  # Pastas contendo os arquivos .npy para validação
+NPY_DATA_DIRS = ["datasets/dataset_pse_npy_v3/FAIL", "datasets/dataset_pse_npy_v3/PASS"]  # Pastas contendo os arquivos .npy para validação
 TEMP_DIR = "temp_pipeline_work"
 IRIS_OUTPUT_DIR = "Results" # O IRIS cria esta pasta por padrão
 
